@@ -1,0 +1,413 @@
+function IsoExts(BaseField, Ext1, Ext2)
+    f := DefiningPolynomial(Ext1, IntegerRing(BaseField));
+    if Degree(Ext1, IntegerRing(BaseField)) ne Degree(Ext2, IntegerRing(BaseField)) then return false; end if;
+    return HasRoot(PolynomialRing(Ext2)!f);
+end function;
+
+function GetMultiplicities(BaseField, ExtList)
+    classes := []; mults := AssociativeArray();
+    for x in ExtList do
+        found := false;
+        for y in classes do
+            if IsoExts(BaseField, x,y) then 
+                found := true;
+                mults[y] := mults[y] + 1;
+            end if;
+        end for;
+        if not found then 
+            classes := classes cat [x];
+            mults[x] := 1;
+        end if;
+    end for;
+    return mults;
+end function;
+
+function GetAutomorphisms(BaseField, ExtList)
+    mults := GetMultiplicities(BaseField, ExtList);
+    prod := 1;
+    for K in ExtList do
+        prod := prod * #Automorphisms(K, IntegerRing(BaseField));
+    end for;
+    for key in Keys(mults) do
+        prod := prod * Factorial(mults[key]);
+    end for;
+    return prod;
+end function;
+
+function GetDisc(BaseField, ExtList)
+    prod := 1;
+    for K in ExtList do
+        q := #ResidueClassField(IntegerRing(BaseField));
+        prod := prod * q^Valuation(Discriminant(K, IntegerRing(BaseField)));
+    end for;
+    return RationalField()!prod;
+end function;
+
+function FlattenListOfLists(arr) 
+    flat := [];
+    for list in arr do
+        flat := flat cat list;
+    end for;
+    return flat;
+end function;
+
+function DistinctExtsWithParams(BaseField, e, f)
+    FirstAttempt := AllExtensions(BaseField, e*f : E := e, F := f);
+    if Type(FirstAttempt[1]) eq SeqEnum then
+        FirstAttempt := FlattenListOfLists(FirstAttempt);
+    end if;
+    distinct := [];
+    for x in FirstAttempt do
+        AlreadyIn := false;
+        for y in distinct do
+            if IsoExts(BaseField, x,y) then
+                AlreadyIn := true;
+            end if;
+        end for;
+        if not AlreadyIn then
+            distinct := distinct cat [x];
+        end if;
+    end for;
+    return distinct; 
+end function;
+
+function EtaleAlgebrasBySymbol(BaseField, Symbols)
+    if Type(Symbols) eq RngIntElt then 
+        Symbols := ["1111", "112", "13", "22", "4", "1^211", "1^22", "1^21^2", "1^31", "2^2", "1^4"];
+    end if;
+    // compute extension sets. We write Extef for the list of extensions with ramification index e and intertia degree f
+    
+    // e,f = 1,1
+    if "1111" in Symbols or "112" in Symbols or "1^211" in Symbols or "1^31" in Symbols or "13" in Symbols then
+        Exts11 := DistinctExtsWithParams(BaseField, 1, 1);
+    end if;
+    
+    // e,f = 1,2
+    if "112" in Symbols or "22" in Symbols or "1^22" in Symbols then 
+        Exts12 := DistinctExtsWithParams(BaseField, 1, 2);
+    end if;
+    
+    // e,f = 2,1
+    
+    if "1^211" in Symbols or "1^22" in Symbols or "1^21^2" in Symbols then 
+        Exts21 := DistinctExtsWithParams(BaseField, 2, 1);
+    end if;
+    
+    // e,f = 1,3
+    
+    if "13" in Symbols then 
+        Exts13 := DistinctExtsWithParams(BaseField, 1, 3);
+    end if;
+        
+    // e,f = 3,1
+    if "1^31" in Symbols then 
+        Exts31 := DistinctExtsWithParams(BaseField, 3, 1);
+    end if;
+    
+    // e,f = 4,1
+    if "1^4" in Symbols then
+        Exts41 := DistinctExtsWithParams(BaseField, 4, 1);
+    end if;
+    
+    // e,f = 2,2
+    if "2^2" in Symbols then
+        Exts22 := DistinctExtsWithParams(BaseField, 2, 2);
+    end if; 
+    
+    // e,f = 1,4
+    if "4" in Symbols then
+        Exts14 := DistinctExtsWithParams(BaseField, 1, 4);
+    end if;
+    
+    // ["1111", "112", "13", "22", "4", "1^211", "1^22", "1^21^2", "1^31", "2^2", "1^4"]
+    
+    EtaleList := [];
+    
+    // 1111
+    if "1111" in Symbols then
+        EtaleList := EtaleList cat [[Exts11[1], Exts11[1], Exts11[1], Exts11[1]]];
+    end if;
+    
+    // 112
+    if "112" in Symbols then
+        EtaleList := EtaleList cat [[Exts11[1], Exts11[1], Exts12[1]]];
+    end if;
+    
+    // 13
+    if "13" in Symbols then 
+        EtaleList := EtaleList cat [[Exts11[1], Exts13[1]]];
+    end if;
+    
+    // 22
+    if "22" in Symbols then 
+        EtaleList := EtaleList cat [[Exts12[1], Exts12[1]]];
+    end if;
+    
+    // 4
+    if "4" in Symbols then 
+        EtaleList := EtaleList cat [[Exts14[1]]];
+    end if;
+    
+    // 1^211
+    if "1^211" in Symbols then 
+        for K in Exts21 do
+            EtaleList := EtaleList cat [[K, Exts11[1], Exts11[1]]];
+        end for;
+    end if;
+    
+    // 1^22 
+    if "1^22" in Symbols then 
+        for K in Exts21 do 
+            EtaleList := EtaleList cat [[K, Exts12[1]]];
+        end for;
+    end if;
+    
+    // 1^21^2
+    if "1^21^2" in Symbols then 
+        for i in [1..#Exts21] do
+            for j in [i..#Exts21] do
+                EtaleList := EtaleList cat [[Exts21[i], Exts21[j]]];
+            end for;
+        end for;
+    end if;
+    
+    // 1^31
+    if "1^31" in Symbols then
+        for K in Exts31 do
+            EtaleList := EtaleList cat [[K, Exts11[1]]];
+        end for;
+    end if;
+    
+    // 2^2
+    if "2^2" in Symbols then
+        for K in Exts22 do 
+            EtaleList := EtaleList cat [[K]];
+        end for;
+    end if;
+    
+    // 1^4
+    if "1^4" in Symbols then 
+        for K in Exts41 do
+            EtaleList := EtaleList cat [[K]];
+        end for;
+    end if;
+    return EtaleList;
+end function;
+
+function PreMassOfEtaleList(BaseField, EtaleList)
+    tot := 0;
+    for ExtList in EtaleList do
+        contrib := (1 / GetDisc(BaseField, ExtList)) * (1 / GetAutomorphisms(BaseField, ExtList));
+        tot := tot + contrib;
+    end for;
+    return tot;
+end function;
+
+function NormGroupOfEtale(BaseField, ExtList)
+    U, m := UnitGroup(BaseField);
+    G_list := []; m_list := [];
+    for K in ExtList do
+        GK, mK := NormGroup(FieldOfFractions(K), m);
+        G_list := G_list cat [GK]; m_list := m_list cat [mK];
+    end for;
+    subgroup := m_list[1](G_list[1]);
+    
+    for i in [2..#G_list] do
+        subgroup := subgroup + m_list[i](G_list[i]);
+    end for;
+    return subgroup, m;
+end function;
+
+function IsNorm(alpha, subgroup, m)
+    return Inverse(m)(Codomain(m)!alpha) in subgroup;
+end function;
+
+function IsNormOfEtale(alpha, BaseField, ExtList)
+    G, m := NormGroupOfEtale(BaseField, ExtList);
+    return IsNorm(alpha, G, m);
+end function;
+
+function EtaleSubsetWithNorm(alpha, BaseField, EtaleList)
+    NewList := [];
+    for ExtList in EtaleList do
+        if IsNormOfEtale(alpha, BaseField, ExtList) then
+            NewList := NewList cat [ExtList];
+        end if;
+    end for;
+    return NewList;
+end function;
+
+function ComputePreMassOfNormSet(alpha, BaseField, Symbols)
+    EtaleListWithSymbols := EtaleAlgebrasBySymbol(BaseField, Symbols);
+    EtaleListWithNorm := EtaleSubsetWithNorm(alpha, BaseField, EtaleListWithSymbols);
+    return PreMassOfEtaleList(BaseField, EtaleListWithNorm);
+end function;
+
+function PredictedPreMassOfNormSet(alpha, BaseField)
+    LookupTable := AssociativeArray();
+    r := Valuation(BaseField!alpha); rBar := r mod 4;
+    u := alpha / UniformizingElement(BaseField)^r;
+    q := #ResidueClassField(IntegerRing(BaseField));
+    
+    if q mod 2 eq 0 then print("Warning: q is even, but the results here are only valid for odd q"); end if;
+    
+    SymbolPreMasses := AssociativeArray();
+    
+    SymbolPreMasses["1111"] := (1/24);
+    SymbolPreMasses["112"] := (1/4);
+    SymbolPreMasses["13"] := (1/3);
+    SymbolPreMasses["1^211"] := (1/(2*q));
+    SymbolPreMasses["1^22"] := (1/(2*q));
+    SymbolPreMasses["1^31"] := (1/(q^2));
+        
+    if r mod 2 eq 0 then 
+        SymbolPreMasses["22"] := (1/8);
+    else 
+        SymbolPreMasses["22"] := 0;
+    end if;
+    
+    if r mod 4 eq 0 then
+        SymbolPreMasses["4"] := (1/4);
+    else
+        SymbolPreMasses["4"] := 0;
+    end if;
+    
+    if r mod 2 eq 0 then
+        if IsSquare(ResidueClassField(IntegerRing(BaseField))!u) then
+            SymbolPreMasses["1^21^2"] := 1 / (2*q^2);
+        else
+            SymbolPreMasses["1^21^2"] := 1 / (4*q^2);
+        end if;
+    else
+        SymbolPreMasses["1^21^2"] := 3 / (8*q^2);
+    end if;
+    
+    if r mod 4 eq 0 then
+        if IsSquare(ResidueClassField(IntegerRing(BaseField))!u) then
+            SymbolPreMasses["2^2"] := 1 / (2*q^2);
+        else
+            SymbolPreMasses["2^2"] := 0;
+        end if;
+    elif r mod 4 eq 2 then
+        SymbolPreMasses["2^2"] := 1 / (4*q^2); 
+    else
+        SymbolPreMasses["2^2"] := 0;
+    end if;
+    
+    if q mod 4 eq 1 then
+        if r mod 4 eq 0 then
+            if IsPower(ResidueClassField(IntegerRing(BaseField))!u, 4) then
+                SymbolPreMasses["1^4"] := (1/q^3);
+            else
+                SymbolPreMasses["1^4"] := 0;
+            end if;
+        elif r mod 4 eq 2 then
+            if IsSquare(ResidueClassField(IntegerRing(BaseField))!u) then
+                SymbolPreMasses["1^4"] := 1 / (2*q^3);
+            else
+                SymbolPreMasses["1^4"] := 0;
+            end if; 
+        else
+            SymbolPreMasses["1^4"] := 1 / (4*q^3);
+        end if;
+    else 
+        if r mod 2 eq 0 then
+            if IsSquare(ResidueClassField(IntegerRing(BaseField))!u) then
+                SymbolPreMasses["1^4"] := 1 /(q^3);
+            else
+                SymbolPreMasses["1^4"] := 0;
+            end if;
+        else 
+            SymbolPreMasses["1^4"] := 1 / (2*q^3);
+        end if;
+    end if;
+    return SymbolPreMasses;
+end function;
+            
+function SumOfAssocArray(arr)
+    tot := 0;
+    for key in Keys(arr) do
+        tot := tot + arr[key];
+    end for;
+    return tot;
+end function;
+
+function TestPredictions(alpha, BaseField)
+    Symbols := ["1111", "112", "13", "22", "4", "1^211", "1^22", "1^21^2", "1^31", "2^2", "1^4"];
+    Predictions := PredictedPreMassOfNormSet(alpha, BaseField);
+    for symbol in Symbols do
+        Result := ComputePreMassOfNormSet(alpha, BaseField, [symbol]);
+        if Result ne Predictions[symbol] then
+            return false;
+        end if;
+    end for;
+    return true;
+end function;
+
+function RandomExtension(BaseField, degree)
+    AllExts := AllExtensions(IntegerRing(BaseField), degree);
+    return FieldOfFractions(Random(AllExts));
+end function;
+
+function GetUnitRepsModFourthPowers(BaseField)
+    ResField := ResidueClassField(IntegerRing(BaseField));
+    U, m := UnitGroup(ResField);
+    lift := BaseField!(m(U.1));
+    return [1, lift, lift^2, lift^3];
+end function;
+
+function TestAllAlpha(BaseField)
+    UnitReps := GetUnitRepsModFourthPowers(BaseField);
+    pi := UniformizingElement(BaseField);
+    for u in UnitReps do
+        for r in [0..3] do
+            alpha := u * pi^r;
+            if not TestPredictions(alpha, BaseField) then
+                return false;
+            end if;
+        end for;
+    end for;
+    return true;
+end function;
+
+function TestPrimeAndDegree(p, d)
+    k0 := ChangePrecision(pAdicField(p), 100);
+    for R1 in AllExtensions(k0, d) do
+        k1 := FieldOfFractions(R1);
+        if not TestAllAlpha(k1) then return false; end if;
+    end for;
+    return true;
+end function;
+
+
+// For all primes in [5..MaxPrime], and all degrees in [1..MaxDegree], checks whether the computed premasses for each symbol 
+// agree with our theoretical predictions. Returns 'true' if they do, and 'false' otherwise
+function TestUpTo(MaxPrime, MaxDegree)
+    for p in PrimesUpTo(MaxPrime) do
+        if not p in [2,3] then 
+            for d in [1..MaxDegree] do
+                if not TestPrimeAndDegree(p,d) then return false; end if;
+            end for;
+            print("Prime passed:");print(p);
+        end if;
+    end for;
+    return true;
+end function;
+            
+// For each of the pairs (u,r) we are interested in, prints the premass of the set of etale Q_2-algebras such that 2^ru is  
+// a norm
+function PrintPreMassesFor2()
+    print("u, r, premass associated to alpha = u*2^4");
+    for u in [1, 3, 5, 7, 9, 11, 13, 15] do
+        for r in [0, 1, 2, 3] do
+            print(<u, r, ComputePreMassOfNormSet(u*2^r, ChangePrecision(pAdicField(2),100), 0)>);
+        end for;
+    end for;
+    return 0;
+end function;
+
+PrintPreMassesFor2();
+
+TestUpTo(20, 3);
+
+   
